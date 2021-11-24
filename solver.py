@@ -27,9 +27,6 @@ def compute_wave_speeds(W_L, W_R):
 
 
 def Z_topography(x):
-	"""
-	Ultimately we will make this a random walk source term with (alpha, beta) (for example).
-	"""
 	return np.max([0, 0.5 - 2 * np.abs(x - 0.5)])
 
 
