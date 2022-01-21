@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from solver_v3 import WB_solver
+from solver import WB_solver
 
 
 # -------------------------------------------------------------------------------------------------------------------- #
@@ -68,27 +68,19 @@ def gen_q_step(x):
 		if x[i] < 50 / 3:
 			q[i] = -350
 	return q
-Z_c = gen_Z_c(xs)
-Z_d = gen_Z_d(xs)
 Z_drain = gen_Z_drain(xs)
 Z_step = gen_Z_step(xs)
 Z_coast = gen_Z_coast(xs)
-h_c = 1 - Z_c
-h_d = 1 - Z_d
 h_drain = 0.1 + Z_drain
 h_init =  np.exp(-0.5 * ((xs - 0.5 * (space_left + space_right)) / 5) ** 2) + 0.0
 h_coast = land_height - Z_coast
 
 q_init = np.zeros(nx + 2)
 q = np.zeros(nx + 2)
-W_c = np.empty((nx + 2, 2))
-W_d = np.empty((nx + 2, 2))
 W_drain = np.empty((nx + 2, 2))
 W_step = np.empty((nx + 2, 2))
 W_coast = np.empty((nx + 2, 2))
 W = np.empty((nx + 2, 2))
-W_c[:, 0] = h_c; W_c[:, 1] = q
-W_d[:, 0] = h_d; W_d[:, 1] = q
 W_drain[:, 0] = h_drain; W_drain[:, 1] = q
 W_step[:, 0] = 10; W_step[:, 1] = gen_q_step(xs)
 W[:, 0] = h_init; W[:, 1] = q_init
