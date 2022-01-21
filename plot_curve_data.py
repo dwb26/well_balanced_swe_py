@@ -2,66 +2,81 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import animation
 
-# hmm_f = open("hmm_data.txt", "r")
 data = open("curve_data.txt", "r")
-
-# length = int(hmm_f.readline())
-# signal = np.empty(length)
-# for i in range(2):
-# 	hmm_f.readline().split()
-# nx = int(hmm_f.readline())
-# for i in range(4):
-# 	hmm_f.readline().split()
-# for i in range(length):
-# 	signal[i] = list(map(float, hmm_f.readline().split()))[0]
+times_f = open("times.txt", "r")
+times = list(map(float, times_f.readline().split()))
 
 nx = 200
 length = 1
 m = 0; n = 0
-# curves = []
-h = []; u = []
+h = []; q = []
+space_left = 0.0; space_right = 50.0
+centre = 10; height = 0.2
+inc_start = 12 + 10
+land_height = 0.2
 counters = np.zeros(length, dtype=int)
 
 for line in data:
 	if m % 2 == 0:
 		h.extend(list(map(float, line.split())))
 	else:
-		u.extend(list(map(float, line.split())))
-		# counters[n] = list(map(int, line.split()))[0]
-		# n += 1
+		q.extend(list(map(float, line.split())))
 	m += 1
 counters[0] = int(h[-1])
 h = h[:-1]
 total_length = np.sum(counters)
 h_arr = np.array(h).reshape((total_length, nx))
-u_arr = np.array(u).reshape((total_length, nx))
-# curve_arr = np.array(curves).reshape((total_length, nx))
+q_arr = np.array(q).reshape((total_length, nx))
 def gen_Z_drain(x):
 	Z = np.empty(len(x))
 	for i in range(len(x)):
 		Z[i] = np.max((0.2 - 0.05 * (x[i] - 10) ** 2, 0))
+		# Z[i] = np.min((-(0.2 - 0.05 * (x[i] - 10) ** 2), 0))
+	return Z
+def gen_Z_step(x):
+	Z = np.empty(len(x))
+	a = 25 / 3; b = 25 / 2
+	for i in range(len(x)):
+		if x[i] < a or x[i] > b:
+			Z[i] = 0
+		else:
+			Z[i] = 1
+	return Z
+def gen_Z_coast(x):
+	Z = np.empty(len(x))
+	for i in range(len(x)):
+		Z[i] = np.max((height - 0.05 * (x[i] - centre) ** 2, 0)) # 10 is the centre, height is 0.2
+	m = 0.5 * np.pi / (space_right - inc_start)
+	for i in range(len(x)):
+		if x[i] >= inc_start:
+			Z[i] = land_height * np.sin(m * (x[i] - inc_start))
 	return Z
 
-fig = plt.figure(figsize=(10, 8))
+fig = plt.figure(figsize=(8, 8))
 ax1 = plt.subplot(211)
 ax2 = plt.subplot(212)
-xs = np.linspace(0, 25, nx)
+xs = np.linspace(space_left, space_right, nx)
 Z_drain = gen_Z_drain(xs)
-# line, = ax.plot(xs, curve_arr[0])
+Z_step = gen_Z_step(xs)
+Z_coast = gen_Z_coast(xs)
 line1, = ax1.plot(xs, h_arr[0])
-top, = ax1.plot(xs, Z_drain)
-line2, = ax2.plot(xs, h_arr[0])
+line2, = ax2.plot(xs, q_arr[0])
+# top, = ax1.plot(xs, Z_drain, "k")
+# top, = ax1.plot(xs, Z_step, "k")
+top, = ax1.plot(xs, Z_coast, "k")
 
 def update(n):
-	# line.set_data(xs, curve_arr[n])
 	line1.set_data(xs, h_arr[n])
-	# top.set_data(xs, h_arr[n])
-	line2.set_data(xs, u_arr[n])
-	ax1.set_title("iterate = {} / {}".format(n, total_length))
-	# ax.set(ylim=(np.min(curve_arr), np.max(curve_arr)))
-	ax1.set(ylim=(np.min(h_arr) - 1, np.max(h_arr) + 1))
-	ax2.set(ylim=(np.min(u_arr), np.max(u_arr)))
-	return line1, line2,
+	line2.set_data(xs, q_arr[n])
+	# top.set_data(xs, Z_drain)
+	# top.set_data(xs, Z_step)
+	top.set_data(xs, Z_coast)
+	ax1.set_title("Time = {:.2f}".format(times[n]))
+	ax1.set(ylim=(-0.1, np.max(h_arr) + 0.1))
+	# ax1.set(ylim=(0, 0.55))
+	ax2.set(ylim=(np.min(q_arr) - 0.1, np.max(q_arr) + 0.1))
+	# return line1, line2,
+	return line1, line2, top,	
 
-ani = animation.FuncAnimation(fig, func=update, frames=range(1, total_length, 5))
+ani = animation.FuncAnimation(fig, func=update, frames=range(0, total_length, 5))
 plt.show()
