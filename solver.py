@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.special import gamma
 
 g = 9.81
 glob_eps = 1e-10
@@ -12,44 +13,45 @@ M_glob = 1e-10
 # M_glob = 1e+04
 
 
-def Z_topography(x, centre, height, inc_start, land_height, space_right):
+def Z_topography(x, k, theta):
 	"""
 	For the topgraphy source term S(W, Z) = -g * h * del_x(Z), Z(x) describes the characteristic form of the topography.
 	"""
-	Z = np.max((height - 0.05 * (x - centre) ** 2, 0))
-	m = 0.5 * np.pi / (space_right - inc_start)
-	if x > inc_start:
-		Z = land_height * np.sin(m * (x - inc_start))
+	# centre = 10; height = 0.2; width = 2
+	# Z = np.max((height - 0.05 * (x - centre) ** 2, 0))
+	# m = 0.5 * np.pi / (space_right - inc_start)
+	# if x > inc_start:
+		# Z = land_height * np.sin(m * (x - inc_start))
 	# a = 25 / 3; b = 25 / 2
 	# if x < a or x > b:
 		# f = 0
 	# else:
 		# f = 1
+	Z = -25 * x ** (k - 1) * np.exp(-x / theta) / (gamma(k) * theta ** k)
 	return Z
 
 
 def prescribe_left_bcs(W, dx, t):
 	# W[0, 0] = W[1, 0]; W[0, 1] = 0.0
-	# scaler = 2 * np.pi
-	scaler = 1
+	scaler = 2 * np.pi
 	# W[0, 0] = W[1, 0] - 2 * dx * np.sin(scaler * t); W[0, 1] = 0.0
 	# W[0, 0] = W[1, 0] - 2 * dx * np.exp(-scaler * t ** 2); W[0, 1] = 0.0
-	W[0, 0] = W[1, 0] + np.exp(-scaler * (t % 10) ** 2); W[0, 1] = 0.0
+	W[0, 0] = W[1, 0] + 5 * np.exp(-scaler * (t % 2) ** 2); W[0, 1] = 0.0
 	return W
 
 
 def prescribe_right_bcs(W, nx):
 	# W[nx + 1, 0] = W[nx, 0]; W[nx + 1, 1] = 0.0
-	W[nx + 1, 0] = 0.0; W[nx + 1, 1] = 0.0
+	# W[nx + 1, 0] = 0.0; W[nx + 1, 1] = 0.0
 	# hN = W[nx, 0]
 	# if hN <= ZERO_THRESH:
-		# uN = 0
+	# 	uN = 0
 	# else:
-		# uN = W[nx, 1] / hN
+	# 	uN = W[nx, 1] / hN
 	# hR = np.min((1 / (9 * g) * (uN + 2 * np.sqrt(g * hN)) ** 2, hN))
 	# qR = hR / 3.0 * (uN + 2 * np.sqrt(g * hN))
 	# W[nx + 1] = hR, qR
-	# W[nx + 1] = W[nx]
+	W[nx + 1] = W[nx]
 	return W
 
 
@@ -62,15 +64,19 @@ def h_cutoff(h_L, h_R, dx):
 	return np.sign(h_R - h_L) * C_CUTOFF * dx
 
 
-def output_data(curve_data_f, times_f, t, nx, W, data, xs, h_init, Z_arr):
+def output_data(curve_data_f, times_f, t, nx, W, Z_arr, Z_data_f, hmm_data_f, theta):
 
 	for j in range(1, nx + 1):
 		curve_data_f.write("{} ".format(W[j, 0] + Z_arr[j]))
-		# curve_data_f.write("{} ".format(W[j, 0]))
 	curve_data_f.write("\n")
+	# for j in range(1, nx + 1):
+		# curve_data_f.write("{} ".format(W[j, 1]))
+	# curve_data_f.write("\n")
 	for j in range(1, nx + 1):
-		curve_data_f.write("{} ".format(W[j, 1]))
-	curve_data_f.write("\n")
+		Z_data_f.write("{} ".format(Z_arr[j]))
+	Z_data_f.write("\n")
+
+	hmm_data_f.write("{} ".format(theta))
 	times_f.write("{} ".format(t))
 
 
@@ -401,7 +407,7 @@ def MUSCL_forward_solution(W, dx, dt, nx, Z_arr, lmbda_neg, lmbda_pos, W_L_stars
 	return W_tilde
 
 
-def WB_solver(W, nx, dx, T_stop, xs, centre, height, inc_start, land_height, space_right):
+def WB_solver(W, nx, dx, T_stop, xs, k, theta, space_right, curve_data_f, Z_data_f, times_f, hmm_data_f):
 	"""
 	This is the well-balanced solver within which we apply the conservative formula. To do this we need to compute the time increment, the wave speeds and the intermediate states at each time iterate. We apply the conservative formula until T_stop is exceeded.
 
@@ -413,12 +419,11 @@ def WB_solver(W, nx, dx, T_stop, xs, centre, height, inc_start, land_height, spa
 	W_R_stars = np.zeros((nx + 1, 2))	# The right intermediate states associated to each boundary
 	lmbda_neg = np.zeros(nx + 1)		# The left moving wave speed associated to each boundary
 	lmbda_pos = np.zeros(nx + 1)		# The right moving wave speed associated to each boundary
-	Z_arr = np.empty(nx + 2)			# Array of the characteristic form of the topography
-	for j in range(nx + 2):
-		Z_arr[j] = Z_topography(xs[j], centre, height, inc_start, land_height, space_right)
+	# Z_arr = np.empty(nx + 2)			# Array of the characteristic form of the topography
+	Z_arr = Z_topography(xs, k, theta)
+	# for j in range(nx + 2):
+		# Z_arr[j] = Z_topography(xs[j], k, theta)
 
-	curve_data_f = open("curve_data.txt", "w")
-	times_f = open("times.txt", "w")
 	data = open("steady_state_test.txt", "w")
 	h_init = np.copy(W[1:nx + 1, 0])
 	W_forward = np.copy(W)
@@ -432,8 +437,7 @@ def WB_solver(W, nx, dx, T_stop, xs, centre, height, inc_start, land_height, spa
 		print(t)
 		W = prescribe_left_bcs(W, dx, t)
 		W = prescribe_right_bcs(W, nx)
-		output_data(curve_data_f, times_f, t, nx, W, data, xs, h_init, Z_arr)
-		W_forward = np.copy(W)
+		output_data(curve_data_f, times_f, t, nx, W, Z_arr, Z_data_f, hmm_data_f, theta)
 
 		# Iterate along each boundary (Riemann problem)
 		for j in range(nx + 1):
@@ -452,20 +456,16 @@ def WB_solver(W, nx, dx, T_stop, xs, centre, height, inc_start, land_height, spa
 			q_star = compute_q_star(q_HLL, S_dx, lmbda_neg[j], lmbda_pos[j])
 			S_dx_by_alph = compute_S_dx_by_alph(h_L, h_R, Z_L, Z_R, S_dx, q_star)
 			h_L_star, h_R_star = compute_h_stars(h_HLL, lmbda_neg[j], lmbda_pos[j], S_dx_by_alph, h_L, h_R)
-			W_L_stars[j] = [h_L_star, q_star]; W_R_stars[j] = [h_R_star, q_star]			
-
+			W_L_stars[j] = [h_L_star, q_star]; W_R_stars[j] = [h_R_star, q_star]
 
 		dt = compute_timestep(lmbda_neg, lmbda_pos, dx)
 		W_forward = MUSCL_forward_solution(W, dx, dt, nx, Z_arr, lmbda_neg, lmbda_pos, W_L_stars, W_R_stars)
-		# W_forward = compute_forward_solution(W, dx, dt, nx, lmbda_neg, lmbda_pos, W_L_stars, W_R_stars)
 		t += dt; n += 1
 
-
-	curve_data_f.write("{}".format(n))
-	curve_data_f.close()
-	times_f.close()
 	data.write("{}".format(n))
 	data.close()
+
+	return n, W_forward
 
 
 
